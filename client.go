@@ -5,12 +5,9 @@ package vssh
 
 import (
 	"bufio"
-	"bytes"
 	"errors"
-	"fmt"
 	"io"
 	"log"
-	"net"
 	"sync"
 	"time"
 
@@ -102,485 +99,132 @@ type pty struct {
 }
 
 // run executes the command on the client
-func (c *clientAttr) run(q *query) {
-	var (
-		wg sync.WaitGroup
+func (c *clientAttr) run(q *query) { _ = "STUB: not implemented"; return }
 
-		done = make(chan struct{})
+func (c *clientAttr) newSession() (*ssh.Session, error) { _ = "STUB: not implemented"; return nil, nil }
 
-		rcOut = make(chan []byte, maxOutChanBuf)
-		rcIn  = make(chan []byte, maxInChanBuf)
-		rcErr = make(chan []byte, maxErrChanBuf)
-		rcSig = make(chan ssh.Signal, 1)
-	)
-
-	if c.client == nil {
-		setErr(c, errNotConn)
-		q.errResp(c.addr, errNotConn)
-		return
-	}
-
-	if c.isSessionsMaxOut() {
-		q.errResp(c.addr, MaxSessionsError{errMaxSessions})
-		return
-	}
-
-	c.incSessions()
-
-	session, err := c.newSession()
-	if err != nil {
-		setErr(c, err)
-		q.errResp(c.addr, err)
-		return
-	}
-
-	writer, err := session.StdinPipe()
-	if err != nil {
-		setErr(c, err)
-		q.errResp(c.addr, err)
-		return
-	}
-
-	scanOut, scanErr, err := c.getScanners(session, q.limitReadOut, q.limitReadErr)
-	if err != nil {
-		setErr(c, err)
-		q.errResp(c.addr, err)
-		return
-	}
-
-	resp := &Response{
-		id: c.addr,
-
-		outChan: rcOut,
-		inChan:  rcIn,
-		errChan: rcErr,
-		sigChan: rcSig,
-
-		session: session,
-	}
-
-	resp.setTimeout(q.respTimeout)
-	q.respChan <- resp
-
-	session.Start(q.cmd)
-
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		for scanOut.Scan() {
-			select {
-			case rcOut <- scanOut.Bytes():
-			default:
-				c.logger.Println("msg stdout has been dropped")
-			}
-		}
-
-		if err := scanOut.Err(); err != nil {
-			c.logger.Println(err)
-		}
-
-		close(done)
-	}()
-
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		for scanErr.Scan() {
-			select {
-			case rcErr <- scanErr.Bytes():
-			default:
-				c.logger.Println("msg stderr has been dropped")
-			}
-		}
-
-		if err := scanErr.Err(); err != nil {
-			c.logger.Println(err)
-		}
-	}()
-
-LOOP:
-	for {
-		select {
-		case in := <-rcIn:
-			fmt.Fprint(writer, string(in))
-		case sig := <-rcSig:
-			session.Signal(sig)
-		case <-q.ctx.Done():
-			session.Close()
-		case <-done:
-			break LOOP
-		}
-
-	}
-
-	if err = session.Wait(); err != nil {
-		switch e := err.(type) {
-		case *ssh.ExitError:
-			resp.exitStatus = e.ExitStatus()
-		}
-	}
-
-	session.Close()
-	c.decSessions()
-
-	wg.Wait()
-
-	close(rcOut)
-	close(rcErr)
-}
-
-func (c *clientAttr) newSession() (*ssh.Session, error) {
-	if c.client == nil {
-		c.decSessions()
-		return nil, errUnreachable
-	}
-
-	cancelTimeout := make(chan struct{})
-
-	go func() {
-		select {
-		case <-time.After(time.Second * 5):
-			c.client.Close()
-		case <-cancelTimeout:
-		}
-	}()
-
-	s, err := c.client.NewSession()
-	close(cancelTimeout)
-
-	if err != nil {
-		c.decSessions()
-		return s, err
-	}
-
-	if c.pty.enabled {
-		err := s.RequestPty(
-			c.pty.term,
-			int(c.pty.height),
-			int(c.pty.wide),
-			c.pty.modes)
-
-		if err != nil {
-			c.decSessions()
-			return nil, err
-		}
-	}
-
-	return s, err
-}
-
-func (c *clientAttr) isSessionsMaxOut() bool {
-	return c.getSessions() >= c.maxSessions
-}
+func (c *clientAttr) isSessionsMaxOut() bool { _ = "STUB: not implemented"; return false }
 
 func (c *clientAttr) getScanners(s *ssh.Session, lOut, lErr int64) (*bufio.Scanner, *bufio.Scanner, error) {
-	var (
-		scanOut *bufio.Scanner
-		scanErr *bufio.Scanner
-		err     error
-	)
-
-	readerOut, err := s.StdoutPipe()
-	if err != nil {
-		return nil, nil, err
-	}
-
-	readerErr, err := s.StderrPipe()
-	if err != nil {
-		return nil, nil, err
-	}
-
-	if lOut > 0 {
-		lReaderOut := io.LimitReader(readerOut, lOut)
-		scanOut = bufio.NewScanner(lReaderOut)
-	} else {
-		scanOut = bufio.NewScanner(readerOut)
-	}
-
-	if lErr > 0 {
-		lReaderErr := io.LimitReader(readerErr, lErr)
-		scanErr = bufio.NewScanner(lReaderErr)
-	} else {
-		scanErr = bufio.NewScanner(readerErr)
-	}
-
-	return scanOut, scanErr, nil
+	_ = "STUB: not implemented"
+	return nil, nil, nil
 }
 
-func (c *clientAttr) setErr(err error) {
-	c.stats.errRecent++
-	c.stats.errCounter++
-	c.lastUpdate = time.Now()
-	c.err = err
-}
+func (c *clientAttr) setErr(err error) { _ = "STUB: not implemented"; return }
 
-func (c *clientAttr) getErr() error {
-	c.RLock()
-	defer c.RUnlock()
-	return c.err
-}
+func (c *clientAttr) getErr() error { _ = "STUB: not implemented"; return nil }
 
-func (c *clientAttr) getClient() *ssh.Client {
-	c.RLock()
-	defer c.RUnlock()
-	return c.client
-}
+func (c *clientAttr) getClient() *ssh.Client { _ = "STUB: not implemented"; return nil }
 
-func (c *clientAttr) labelMatch(v *visitor) bool {
-	if len(c.labels) < 1 {
-		return false
-	}
+func (c *clientAttr) labelMatch(v *visitor) bool { _ = "STUB: not implemented"; return false }
 
-	ok, err := exprEval(v, c.labels)
-	if err != nil {
-		return false
-	}
+func (c *clientAttr) connect() { _ = "STUB: not implemented"; return }
 
-	return ok
-}
+// already connected w/o error
 
-func (c *clientAttr) connect() {
-	c.Lock()
-	defer c.Unlock()
+// out of service
 
-	// already connected w/o error
-	if c.client != nil && c.err == nil {
-		return
-	}
+func (c *clientAttr) close() { _ = "STUB: not implemented"; return }
 
-	// out of service
-	if c.maxSessions == 0 {
-		return
-	}
+func (c *clientAttr) incSessions() { _ = "STUB: not implemented"; return }
 
-	timeout := time.Duration(dialTimeoutSec) * time.Second
-	conn, err := net.DialTimeout("tcp", c.addr, timeout)
-	if err != nil {
-		c.setErr(err)
-		return
-	}
+func (c *clientAttr) decSessions() { _ = "STUB: not implemented"; return }
 
-	sshConn, chans, req, err := ssh.NewClientConn(conn, c.addr, c.config)
-	if err != nil {
-		conn.Close()
-		c.setErr(err)
-		return
-	}
-
-	c.client = ssh.NewClient(sshConn, chans, req)
-	c.lastUpdate = time.Now()
-	c.err = nil
-	c.stats.errRecent = 0
-}
-
-func (c *clientAttr) close() {
-	c.Lock()
-	defer c.Unlock()
-	if c.curSessions == 0 {
-		c.client.Close()
-		c.client = nil
-	}
-}
-
-func (c *clientAttr) incSessions() {
-	c.Lock()
-	defer c.Unlock()
-	c.curSessions++
-}
-
-func (c *clientAttr) decSessions() {
-	c.Lock()
-	defer c.Unlock()
-	c.curSessions--
-}
-
-func (c *clientAttr) getSessions() uint8 {
-	c.Lock()
-	defer c.Unlock()
-	return c.curSessions
-}
+func (c *clientAttr) getSessions() uint8 { _ = "STUB: not implemented"; return 0 }
 
 func (c *connect) run(v *VSSH) {
-	c.connect()
+	_ = "STUB: not implemented"
+
+	// SetTimeout sets timeout for the given response
+	return
 }
 
-// SetTimeout sets timeout for the given response
-func (r *Response) setTimeout(t time.Duration) {
-	r.toCancel = make(chan struct{})
-
-	go func() {
-		select {
-		case <-r.toCancel:
-			return
-		case <-time.After(t):
-			r.err = TimeoutError{errTimeout}
-			r.session.Close()
-		}
-	}()
-}
+func (r *Response) setTimeout(t time.Duration) { _ = "STUB: not implemented"; return }
 
 func (r *Response) cancelTimeout() {
-	close(r.toCancel)
+	_ = "STUB: not implemented"
+
+	// GetText gets the final result of the given response.
+	return
 }
 
-// GetText gets the final result of the given response.
 func (r *Response) GetText(v *VSSH) (string, string, error) {
-	var (
-		data    []byte
-		outDone bool
-		errDone bool
-		ok      bool
-	)
-
-	stream := r.GetStream()
-	defer stream.Close()
-
-	bufOut := v.bufPool.Get().(*bytes.Buffer)
-	bufErr := v.bufPool.Get().(*bytes.Buffer)
-
-	defer v.bufPool.Put(bufOut)
-	defer v.bufPool.Put(bufErr)
-
-	bufOut.Reset()
-	bufErr.Reset()
-
-	for {
-		select {
-		case data, ok = <-stream.r.outChan:
-			if ok {
-				bufOut.Write(append(data, '\n'))
-			} else {
-				outDone = true
-			}
-		case data, ok = <-stream.r.errChan:
-			if ok {
-				bufErr.Write(append(data, '\n'))
-			} else {
-				errDone = true
-			}
-		}
-
-		if outDone && errDone {
-			break
-		}
-	}
-
-	return bufOut.String(), bufErr.String(), stream.Err()
+	_ = "STUB: not implemented"
+	return "", "", nil
 }
 
 // Err returns response error.
 func (r *Response) Err() error {
-	return r.err
+	_ = "STUB: not implemented"
+
+	// ID returns response identification.
+	return nil
 }
 
-// ID returns response identification.
 func (r *Response) ID() string {
-	return r.id
+	_ = "STUB: not implemented"
+
+	// GetStream constructs a new stream from a response.
+	return ""
 }
 
-// GetStream constructs a new stream from a response.
-func (r *Response) GetStream() *Stream {
-	if r.err != nil {
-		return nil
-	}
-
-	return &Stream{
-		r: r,
-	}
-}
+func (r *Response) GetStream() *Stream { _ = "STUB: not implemented"; return nil }
 
 // ExitStatus returns the exit status of the remote command.
-func (r *Response) ExitStatus() int {
-	return r.exitStatus
-}
+func (r *Response) ExitStatus() int { _ = "STUB: not implemented"; return 0 }
 
 // ScanStdout provides a convenient interface for reading stdout
 // which it connected to remote host. It reads a line and buffers
 // it. The TextStdout() or BytesStdout() methods return the buffer
 // in string or bytes.
-func (s *Stream) ScanStdout() bool {
-	if s.done {
-		return false
-	}
-
-	var ok bool
-
-	s.stdout, ok = <-s.r.outChan
-
-	return ok
-}
+func (s *Stream) ScanStdout() bool { _ = "STUB: not implemented"; return false }
 
 // TextStdout returns the most recent data scanned by ScanStdout as string.
-func (s *Stream) TextStdout() string {
-	return string(s.stdout)
-}
+func (s *Stream) TextStdout() string { _ = "STUB: not implemented"; return "" }
 
 // BytesStdout returns the most recent data scanned by ScanStdout as bytes.
 func (s *Stream) BytesStdout() []byte {
-	return s.stdout
-}
+	_ = "STUB: not implemented"
 
-// ScanStderr provides a convenient interface for reading stderr
-// which it connected to remote host. It reads a line and buffers
-// it. The TextStdout() or BytesStdout() methods return the buffer
-// in string or bytes.
-func (s *Stream) ScanStderr() bool {
-	if s.done {
-		return false
-	}
-
-	var ok bool
-
-	s.stderr, ok = <-s.r.errChan
-
-	return ok
-}
-
-// TextStderr returns the most recent data scanned by ScanStderr as string.
-func (s *Stream) TextStderr() string {
-	return string(s.stderr)
-}
-
-// BytesStderr returns the most recent data scanned by ScanStderr as bytes.
-func (s *Stream) BytesStderr() []byte {
-	return s.stderr
-}
-
-// Close cleans up the stream's response.
-func (s *Stream) Close() error {
-	if s.r == nil || s.r.session == nil {
-		return errSessNotEst
-	}
-
-	s.done = true
-
-	s.r.session.Close()
-	s.r.cancelTimeout()
-
+	// ScanStderr provides a convenient interface for reading stderr
+	// which it connected to remote host. It reads a line and buffers
+	// it. The TextStdout() or BytesStdout() methods return the buffer
+	// in string or bytes.
 	return nil
 }
 
+func (s *Stream) ScanStderr() bool { _ = "STUB: not implemented"; return false }
+
+// TextStderr returns the most recent data scanned by ScanStderr as string.
+func (s *Stream) TextStderr() string { _ = "STUB: not implemented"; return "" }
+
+// BytesStderr returns the most recent data scanned by ScanStderr as bytes.
+func (s *Stream) BytesStderr() []byte {
+	_ = "STUB: not implemented"
+
+	// Close cleans up the stream's response.
+	return nil
+}
+
+func (s *Stream) Close() error { _ = "STUB: not implemented"; return nil }
+
 // Err returns stream response error.
 func (s *Stream) Err() error {
-	return s.r.err
+	_ = "STUB: not implemented"
+
+	// Signal sends the given signal to remote process.
+	return nil
 }
 
-// Signal sends the given signal to remote process.
 func (s *Stream) Signal(sig ssh.Signal) {
-	s.r.sigChan <- sig
+	_ = "STUB: not implemented"
+
+	// Input writes the given reader to remote command's standard
+	// input when the command starts.
+	return
 }
 
-// Input writes the given reader to remote command's standard
-// input when the command starts.
-func (s *Stream) Input(in io.Reader) {
-	buf := new(bytes.Buffer)
-	buf.ReadFrom(in)
-	s.r.inChan <- buf.Bytes()
-}
+func (s *Stream) Input(in io.Reader) { _ = "STUB: not implemented"; return }
 
 // setErr is a helper func to update error with mutex
-func setErr(c *clientAttr, err error) {
-	c.Lock()
-	defer c.Unlock()
-	c.setErr(err)
-}
+func setErr(c *clientAttr, err error) { _ = "STUB: not implemented"; return }

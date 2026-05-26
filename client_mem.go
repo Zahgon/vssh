@@ -4,7 +4,6 @@
 package vssh
 
 import (
-	"hash/fnv"
 	"sync"
 )
 
@@ -16,53 +15,14 @@ type clientsShard struct {
 	sync.RWMutex
 }
 
-func (c *clients) getShard(key string) uint {
-	hash := fnv.New32()
-	hash.Write([]byte(key))
-	hSum32 := hash.Sum32()
-	return uint(hSum32) % uint(clientsShardNum)
-}
+func (c *clients) getShard(key string) uint { _ = "STUB: not implemented"; return 0 }
 
-func newClients() clients {
-	c := make(clients, clientsShardNum)
-	for i := 0; i < clientsShardNum; i++ {
-		c[i] = &clientsShard{}
-		c[i].clients = make(map[string]*clientAttr)
-	}
-	return c
-}
+func newClients() clients { _ = "STUB: not implemented"; return *new(clients) }
 
-func (c clients) add(client *clientAttr) {
-	shard := c.getShard(client.addr)
-	c[shard].Lock()
-	defer c[shard].Unlock()
-	c[shard].clients[client.addr] = client
-}
-func (c clients) del(key string) {
-	shard := c.getShard(key)
-	c[shard].Lock()
-	defer c[shard].Unlock()
-	delete(c[shard].clients, key)
-}
-func (c clients) get(key string) (*clientAttr, bool) {
-	shard := c.getShard(key)
-	c[shard].RLock()
-	defer c[shard].RUnlock()
-	v, ok := c[shard].clients[key]
-	return v, ok
-}
+func (c clients) add(client *clientAttr) { _ = "STUB: not implemented"; return }
 
-func (c clients) enum() chan *clientAttr {
-	ch := make(chan *clientAttr, 1)
-	go func() {
-		for i := 0; i < clientsShardNum; i++ {
-			c[i].Lock()
-			for _, v := range c[i].clients {
-				ch <- v
-			}
-			c[i].Unlock()
-		}
-		close(ch)
-	}()
-	return ch
-}
+func (c clients) del(key string) { _ = "STUB: not implemented"; return }
+
+func (c clients) get(key string) (*clientAttr, bool) { _ = "STUB: not implemented"; return nil, false }
+
+func (c clients) enum() chan *clientAttr { _ = "STUB: not implemented"; return nil }
